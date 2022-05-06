@@ -1,5 +1,5 @@
 import conf, json, time, math, statistics,requests
-from boltiot import Sms, Bolt
+from boltiot import Bolt
 
 def compute_bounds(history_data,frame_size,factor):
         if len(history_data)<frame_size :
