@@ -1,1 +1,103 @@
+import conf, json, time, math, statistics,requests
+from boltiot import Bolt
 
+# 'json' is the python library used for handling JSON objects and JSON is a data communication format.
+# 'time' is a module for sleep operation
+# 'requests' is used for making HTTP requests
+# The 'math' and 'statistics' libraries will be required for calculating the Z-score and the threshold boundaries.
+# 'Bolt' is used for accessing data from your Bolt device like the temperature reading.
+
+# The following lies code helps define a function which calculates the Z-score and the using the Z-score calculates the boundaries required for anomaly detection.
+
+def compute_bounds(history_data,frame_size,factor):               # This line helps define a function, which takes 3 input variables: hisotry_data, frame_size and factor.
+        if len(history_data)<frame_size :                         # The 'if' condition checks whether enough data has been accumulated to calculate the Z-score, and if there is too much data, then the code deletes the older data.
+                return None
+
+        if len(history_data)>frame_size :
+                del history_data[0:len(history_data)-frame_size]
+        Mn=statistics.mean(history_data)                          # this line calculates the mean (Mn) value of the collected data points.
+        Variance=0                                                # This line helps to calculate the Variance of the data points. 
+        for data in history_data :
+                Variance += math.pow((data-Mn),2)
+        Zn = factor * math.sqrt(Variance / frame_size)            # Here we calculate the Z score (Zn) for the data and use it to calculate the upper and lower threshold bounds required to check if a new data point is normal or anomalous.
+        High_bound = history_data[frame_size-1]+Zn
+        Low_bound = history_data[frame_size-1]-Zn
+        return [High_bound,Low_bound]
+        
+
+mybolt = Bolt(conf.API_KEY, conf.DEVICE_ID)                       # Ths line is used to initialize the Bolt Wifi Module
+
+
+def send_telegram_message(message):                                              # Here we create a function to send a message via Telegram. The function `send_telegram_message()` takes one parameter i.e. the message to send.
+    """Sends message via Telegram"""
+    url = "https://api.telegram.org/" + conf.telegram_bot_id + "/sendMessage"    # Here we are building the URL so that Telegram knows which bot it has to send the message to. 
+    data = {                                                                     # The 'data' variable is a dictionary which holds the chat ID(Channel ID) so that the Bot knows which channel it has to post the message to. It also contains the text message to be sent as a message.
+        "chat_id": conf.telegram_chat_id,
+        "text": message
+    }
+    try:                                                                         # This function is encased in a try-except block so that any errors are caught and it returns a False if any error is present in the try block.
+        response = requests.request(                                             # We need to make a HTTP request to the Telegram servers using the URL we have built earlier. The request is a "POST" request which contains all the relevant data like URL and the data to be contained in the request.
+            "POST",
+            url,
+            params=data
+        )
+        print("This is the Telegram URL")                                        # Here we are just printing the response from the request as text form. We also need to convert the text data to a JSON data so that we can find the status of the request to Telegram.
+        print(url)
+        print("This is the Telegram response")
+        print(response.text)
+        telegram_data = json.loads(response.text)                                # This line converts the text response to a JSON object and stores it in telegram_data.
+        return telegram_data["ok"]                                               # The status of the request is stored in the "ok" field of the telegram_data variable and we are returning it. The "ok" field will always contain a boolean value i.e. True/False and is True if the message has been sent.
+    except Exception as e:
+    print("An error occurred in sending the alert message via Telegram")
+        print(e)
+        return False
+               
+        
+history_data=[]                                                   # Here we initialize an empty list with the name 'history_data' which will be used to store older data, so that we can calculate the Z-score.
+
+
+
+# The following while loop contains the code required to run the algorithm of anomaly detection.
+
+while True:
+        response = mybolt.analogRead('A0')                                      # This line helps in getting the sensor values from the LDR Sensor
+        data = json.loads(response)
+        if data['success'] != 1:
+                print("There was an error while retriving the data.")
+                print("This is the error:"+data['value'])
+                time.sleep(10)
+                continue
+
+        print ("This is the value "+data['value'])
+        sensor_value=0
+        try:
+                sensor_value = int(data['value'])
+        except e:
+                print("There was an error while parsing the response: ",e)
+                continue
+                
+        bound = compute_bounds(history_data,conf.FRAME_SIZE,conf.MUL_FACTOR)
+        if not bound:
+                required_data_count=conf.FRAME_SIZE-len(history_data)
+                print("Not enough data to compute Z-score. Need ",required_data>
+                history_data.append(int(data['value']))
+                time.sleep(10)
+                continue
+
+        try:                                                                   # This function is encased in a try-except block so that any errors are caught and it returns the error if any error is present in the try block.
+                if sensor_value > bound[0] :                                   # The 'if' condition checks to see whether the new sensor values are within the boundaries of the calculaed z-score boundaries, if it is then it countinues to read and function as normal, if not then the Buzzer gets activated and a response message will be send via Telegram
+                        print ("The light level increased suddenly")
+                        response = mybolt.digitalWrite('0','HIGH')
+                        message = "Alert! Intruder detected"
+                        telegram_status = send_telegram_message(message)
+                        print("This is the telegram status:", telegram_status)
+                elif sensor_value < bound[1]:
+                        print ("The light level decreased suddenly")
+                        response = mybolt.digitalWrite('0','HIGH')
+                        message = "Alert! Intruder detected"
+                        telegram_status = send_telegram_message(message)
+                        print("This is the telegram status:", telegram_status)
+                history_data.append(sensor_value);
+        except Exception as e:
+                print ("Error",e)
+        time.sleep(10)
