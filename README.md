@@ -1,1 +1,1 @@
-# Intruder-Detection-Alarm-via-Telegram-using-Bolt-IoT
+It is a project that can be able to detect anomaly in the light density within the room using Z-Score and if found any anomaly in the readings the buzzer would then get activated and an alert message would be send to Telegram.
